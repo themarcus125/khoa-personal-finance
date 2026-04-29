@@ -21,6 +21,8 @@ def get_sheet():
         logger.error("GOOGLE_CREDENTIALS_JSON environment variable is missing.")
         raise ValueError("Please set the GOOGLE_CREDENTIALS_JSON environment variable.")
     creds_dict = json.loads(creds_json_str)
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
     gc = gspread.service_account_from_dict(creds_dict)
     return gc.open_by_key(config.SPREADSHEET_ID)
 
