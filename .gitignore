@@ -1,0 +1,35 @@
+## Security - NEVER commit environment variables!
+
+.env
+*.json
+
+## Virtual Environments
+
+venv/
+env/
+.venv/
+
+## Python cache and compiled files
+
+pycache/
+*.py[cod]
+*$py.class
+*.so
+
+## Logs
+
+*.log
+
+## OS generated files (Mac)
+
+.DS_Store
+.DS_Store?
+._*
+.Trashes
+
+## IDEs and Editors
+
+.vscode/
+.idea/
+*.swp
+*.swo
