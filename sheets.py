@@ -56,7 +56,7 @@ def load_settings() -> None:
 
 def get_card_keyboard() -> ReplyKeyboardMarkup:
     cards = list(CLOSING_DAYS_CACHE.keys()) or list(config.DEFAULT_CLOSING_DAYS.keys())
-    keyboard = [cards[i:i + 2] for i in range(0, len(cards), 2)]
+    keyboard = [cards[i : i + 2] for i in range(0, len(cards), 2)]
     return ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
 
 

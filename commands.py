@@ -3,12 +3,12 @@ from collections import defaultdict
 from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
-from telegram import Update, ReplyKeyboardRemove
-from telegram.ext import ConversationHandler, ContextTypes
+from telegram import ReplyKeyboardRemove, Update
+from telegram.ext import ContextTypes, ConversationHandler
 
 import config
 import sheets
-from formatters import parse_amount, bold_money, safe_cell, parse_month, esc, send_html
+from formatters import bold_money, esc, parse_amount, parse_month, safe_cell, send_html
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +68,8 @@ async def get_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
             type_val = safe_cell(row, config.TxnCol.TYPE).lower()
             is_refund = safe_cell(row, config.TxnCol.REFUND).lower()
 
-            if month and is_refund != 'yes' and type_val == 'spending':
-                monthly_data[month][card].append({'desc': desc, 'amount': amount})
+            if month and is_refund != "yes" and type_val == "spending":
+                monthly_data[month][card].append({"desc": desc, "amount": amount})
 
         sorted_months = sorted(monthly_data.keys(), key=parse_month)
 
@@ -82,7 +82,7 @@ async def get_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
             m_dt = parse_month(m)
             if m_dt >= current_month_dt - relativedelta(months=1):
                 month_total = sum(
-                    item['amount']
+                    item["amount"]
                     for card_items in monthly_data[m].values()
                     for item in card_items
                 )
@@ -90,11 +90,17 @@ async def get_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 lines.append(SEP)
 
                 for c, items in monthly_data[m].items():
-                    card_total = sum(item['amount'] for item in items)
+                    card_total = sum(item["amount"] for item in items)
                     lines.append(f"  💳 <b>{esc(c)}</b>: {bold_money(card_total)}")
                     for item in items:
-                        short_desc = (item['desc'][:32] + '…') if len(item['desc']) > 32 else item['desc']
-                        lines.append(f"     ├ {esc(short_desc)}: {bold_money(item['amount'])}")
+                        short_desc = (
+                            (item["desc"][:32] + "…")
+                            if len(item["desc"]) > 32
+                            else item["desc"]
+                        )
+                        lines.append(
+                            f"     ├ {esc(short_desc)}: {bold_money(item['amount'])}"
+                        )
 
         if len(lines) == 1:
             lines.append("\n🗒️ No transactions yet for this period.")
@@ -138,6 +144,7 @@ async def get_installments(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if periods > 0 and start_date_str:
                 try:
                     from formatters import parse_flexible_date
+
                     start_date = parse_flexible_date(start_date_str)
                     now = datetime.now(config.VN_TZ).date()
                     if now >= start_date:
@@ -147,24 +154,47 @@ async def get_installments(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception:
                     logger.warning(f"Failed to parse date for {item!r}")
 
-            if item:
-                installments_by_card[card].append({
-                    'item': item,
-                    'monthly': monthly_payment,
-                    'periods': periods,
-                    'paid': paid,
-                    'left': left,
-                })
+            if (
+                item
+                and card.lower() != "card"
+                and item.lower() not in ("item", "totals")
+            ):
+                installments_by_card[card].append(
+                    {
+                        "item": item,
+                        "monthly": monthly_payment,
+                        "periods": periods,
+                        "paid": paid,
+                        "left": left,
+                    }
+                )
 
         lines = ["<b>🙏🏼 All Tracked Installments</b>"]
 
         for c, items in installments_by_card.items():
-            active_monthly = sum(i['monthly'] for i in items if i['left'] > 0)
+            active_monthly = sum(i["monthly"] for i in items if i["left"] > 0)
             lines.append(f"\n{SEP}")
-            lines.append(f"💳 <b>{esc(c)}</b> · Active monthly: {bold_money(active_monthly)}")
+            lines.append(
+                f"💳 <b>{esc(c)}</b> · Active monthly: {bold_money(active_monthly)}"
+            )
             for i in items:
-                status = "✅ Completed" if i['left'] <= 0 else f"{i['paid']}/{i['periods']} paid, {i['left']} left"
-                lines.append(f"   ├ {esc(i['item'])}: {bold_money(i['monthly'])}/mo [{status}]")
+                status = (
+                    "✅ Completed"
+                    if i["left"] <= 0
+                    else f"{i['paid']}/{i['periods']} paid, {i['left']} left"
+                )
+                lines.append(
+                    f"   ├ {esc(i['item'])}: {bold_money(i['monthly'])}/mo [{status}]"
+                )
+
+        total_active = sum(
+            i["monthly"]
+            for items in installments_by_card.values()
+            for i in items
+            if i["left"] > 0
+        )
+        lines.append(f"\n{SEP}")
+        lines.append(f"💰 <b>TOTALS: {bold_money(total_active)}/mo</b>")
 
         await send_html(update, "\n".join(lines))
 
@@ -201,7 +231,13 @@ async def get_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 capture_cat = True
                 continue
 
-            if not col_a or "💰" in col_a or "Next statement" in col_a or "Monthly Cash Flow" in col_a or col_a == "Card":
+            if (
+                not col_a
+                or "💰" in col_a
+                or "Next statement" in col_a
+                or "Monthly Cash Flow" in col_a
+                or col_a == "Card"
+            ):
                 capture_main = False
                 capture_cat = False
                 continue
@@ -252,7 +288,9 @@ async def get_closing(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 days_until = safe_cell(row, 3)
                 status = safe_cell(row, 4)
 
-                status_emoji = "✅" if "Plenty" in status else "⚠️" if "Soon" in status else "🚨"
+                status_emoji = (
+                    "✅" if "Plenty" in status else "⚠️" if "Soon" in status else "🚨"
+                )
                 lines.append(
                     f"💳 <b>{esc(col_a)}</b>: {esc(date_val)} ({esc(days_until)} days) {status_emoji}"
                 )

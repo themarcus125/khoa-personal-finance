@@ -3,10 +3,10 @@ import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, filters
 
-import config
-import sheets
 import commands
+import config
 import conversations
+import sheets
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -21,7 +21,9 @@ def main():
         return
 
     if not config.ALLOWED_USER_ID:
-        logger.error("ALLOWED_USER_ID is missing. Set it in .env to restrict bot access.")
+        logger.error(
+            "ALLOWED_USER_ID is missing. Set it in .env to restrict bot access."
+        )
         return
 
     logger.info("Fetching initial settings from Google Sheets...")
@@ -31,17 +33,29 @@ def main():
 
     app = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
 
-    app.add_handler(CommandHandler('start', commands.start, filters=user_filter))
-    app.add_handler(CommandHandler('refresh', commands.refresh_settings, filters=user_filter))
-    app.add_handler(CommandHandler('report', commands.get_report, filters=user_filter))
-    app.add_handler(CommandHandler('report_installments', commands.get_installments, filters=user_filter))
-    app.add_handler(CommandHandler('dashboard', commands.get_dashboard, filters=user_filter))
-    app.add_handler(CommandHandler('closing', commands.get_closing, filters=user_filter))
-    app.add_handler(CommandHandler('budget', commands.get_budget, filters=user_filter))
+    app.add_handler(CommandHandler("start", commands.start, filters=user_filter))
+    app.add_handler(
+        CommandHandler("refresh", commands.refresh_settings, filters=user_filter)
+    )
+    app.add_handler(CommandHandler("report", commands.get_report, filters=user_filter))
+    app.add_handler(
+        CommandHandler(
+            "report_installments", commands.get_installments, filters=user_filter
+        )
+    )
+    app.add_handler(
+        CommandHandler("dashboard", commands.get_dashboard, filters=user_filter)
+    )
+    app.add_handler(
+        CommandHandler("closing", commands.get_closing, filters=user_filter)
+    )
+    app.add_handler(CommandHandler("budget", commands.get_budget, filters=user_filter))
     app.add_handler(conversations.build_expense_handler(user_filter))
     app.add_handler(conversations.build_installment_handler(user_filter))
 
-    logger.info(f"Bot is starting... Access restricted to user ID {config.ALLOWED_USER_ID}.")
+    logger.info(
+        f"Bot is starting... Access restricted to user ID {config.ALLOWED_USER_ID}."
+    )
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

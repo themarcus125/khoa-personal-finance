@@ -1,0 +1,18 @@
+[tool.ruff]
+line-length = 88
+exclude = ["venv"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (unused imports, undefined names)
+    "I",   # isort (import ordering)
+    "UP",  # pyupgrade (modern Python syntax)
+    "B",   # flake8-bugbear (common bugs)
+]
+ignore = [
+    "E501", # line too long (string literals and HTML are fine long)
+    "G004", # f-strings in logging (common in bot code)
+    "B008", # function calls in default args (telegram handlers do this)
+]

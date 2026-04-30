@@ -1,31 +1,39 @@
 import logging
 from datetime import datetime
 
-from telegram import Update, ReplyKeyboardRemove
+from telegram import ReplyKeyboardRemove, Update
 from telegram.ext import (
     CommandHandler,
-    ConversationHandler,
     ContextTypes,
+    ConversationHandler,
     MessageHandler,
     filters,
 )
 
 import config
-from formatters import bold_money, esc, parse_flexible_date
-from sheets import get_sheet, get_card_keyboard, calculate_statement_month
+from formatters import bold_money, esc
+from sheets import calculate_statement_month, get_card_keyboard, get_sheet
 
 logger = logging.getLogger(__name__)
 
 # Conversation states
 (
-    EXP_CARD, EXP_AMOUNT, EXP_CATEGORY, EXP_DESC,
-    INST_ITEM, INST_CARD, INST_START_DATE, INST_FULL_PRICE, INST_PERIODS,
+    EXP_CARD,
+    EXP_AMOUNT,
+    EXP_CATEGORY,
+    EXP_DESC,
+    INST_ITEM,
+    INST_CARD,
+    INST_START_DATE,
+    INST_FULL_PRICE,
+    INST_PERIODS,
 ) = range(9)
 
 
 # ==========================================
 #         ADD EXPENSE CONVERSATION
 # ==========================================
+
 
 async def start_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -36,7 +44,7 @@ async def start_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def exp_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['card'] = update.message.text
+    context.user_data["card"] = update.message.text
     await update.message.reply_text(
         "Got it. How much did you spend? (e.g. 128900)",
         reply_markup=ReplyKeyboardRemove(),
@@ -46,8 +54,8 @@ async def exp_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def exp_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        amount = float(update.message.text.replace(',', ''))
-        context.user_data['amount'] = amount
+        amount = float(update.message.text.replace(",", ""))
+        context.user_data["amount"] = amount
         await update.message.reply_text(
             "What category does this fall under?",
             reply_markup=config.CATEGORY_KEYBOARD,
@@ -59,7 +67,7 @@ async def exp_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def exp_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['category'] = update.message.text
+    context.user_data["category"] = update.message.text
     await update.message.reply_text(
         "Briefly describe the purchase:",
         reply_markup=ReplyKeyboardRemove(),
@@ -69,9 +77,9 @@ async def exp_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def exp_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     description = update.message.text
-    card = context.user_data['card']
-    amount = context.user_data['amount']
-    category = context.user_data['category']
+    card = context.user_data["card"]
+    amount = context.user_data["amount"]
+    category = context.user_data["category"]
 
     date_obj = datetime.now(config.VN_TZ)
     statement_month = calculate_statement_month(date_obj, card)
@@ -103,7 +111,9 @@ async def exp_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception:
         logger.exception("Error appending expense row")
-        await update.message.reply_text("❌ Failed to add to Google Sheets. Check logs.")
+        await update.message.reply_text(
+            "❌ Failed to add to Google Sheets. Check logs."
+        )
 
     return ConversationHandler.END
 
@@ -111,6 +121,7 @@ async def exp_desc(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==========================================
 #       ADD INSTALLMENT CONVERSATION
 # ==========================================
+
 
 async def start_installment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -121,7 +132,7 @@ async def start_installment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def inst_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['item'] = update.message.text
+    context.user_data["item"] = update.message.text
     await update.message.reply_text(
         "Which card did you use for this installment?",
         reply_markup=get_card_keyboard(),
@@ -130,7 +141,7 @@ async def inst_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def inst_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['card'] = update.message.text
+    context.user_data["card"] = update.message.text
     await update.message.reply_text(
         "What is the start date? (DD/MM/YYYY, e.g. 01/05/2026 or type 'today')",
         reply_markup=ReplyKeyboardRemove(),
@@ -140,7 +151,7 @@ async def inst_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def inst_start_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower().strip()
-    if text == 'today':
+    if text == "today":
         date_obj = datetime.now(config.VN_TZ)
     else:
         try:
@@ -151,19 +162,25 @@ async def inst_start_date(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return INST_START_DATE
 
-    context.user_data['start_date'] = date_obj
-    await update.message.reply_text("What is the full price of the item? (e.g. 24997000)")
+    context.user_data["start_date"] = date_obj
+    await update.message.reply_text(
+        "What is the full price of the item? (e.g. 24997000)"
+    )
     return INST_FULL_PRICE
 
 
 async def inst_full_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        full_price = float(update.message.text.replace(',', ''))
-        context.user_data['full_price'] = full_price
-        await update.message.reply_text("How many months is the installment period? (e.g. 12)")
+        full_price = float(update.message.text.replace(",", ""))
+        context.user_data["full_price"] = full_price
+        await update.message.reply_text(
+            "How many months is the installment period? (e.g. 12)"
+        )
         return INST_PERIODS
     except ValueError:
-        await update.message.reply_text("Please enter a valid number for the full price.")
+        await update.message.reply_text(
+            "Please enter a valid number for the full price."
+        )
         return INST_FULL_PRICE
 
 
@@ -171,10 +188,10 @@ async def inst_periods(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         periods = int(update.message.text)
 
-        item = context.user_data['item']
-        card = context.user_data['card']
-        start_date = context.user_data['start_date']
-        full_price = context.user_data['full_price']
+        item = context.user_data["item"]
+        card = context.user_data["card"]
+        start_date = context.user_data["start_date"]
+        full_price = context.user_data["full_price"]
         monthly = full_price / periods if periods > 0 else full_price
 
         row = [
@@ -204,7 +221,9 @@ async def inst_periods(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return INST_PERIODS
     except Exception:
         logger.exception("Error appending installment row")
-        await update.message.reply_text("❌ Failed to add to Google Sheets. Check logs.")
+        await update.message.reply_text(
+            "❌ Failed to add to Google Sheets. Check logs."
+        )
 
     return ConversationHandler.END
 
@@ -213,28 +232,33 @@ async def inst_periods(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #           HANDLER FACTORIES
 # ==========================================
 
+
 def build_expense_handler(user_filter=None) -> ConversationHandler:
     from commands import cancel
+
     cmd_filter = user_filter if user_filter is not None else filters.ALL
     text = filters.TEXT & ~filters.COMMAND
     return ConversationHandler(
-        entry_points=[CommandHandler('expense', start_expense, filters=cmd_filter)],
+        entry_points=[CommandHandler("expense", start_expense, filters=cmd_filter)],
         states={
             EXP_CARD: [MessageHandler(text, exp_card)],
             EXP_AMOUNT: [MessageHandler(text, exp_amount)],
             EXP_CATEGORY: [MessageHandler(text, exp_category)],
             EXP_DESC: [MessageHandler(text, exp_desc)],
         },
-        fallbacks=[CommandHandler('cancel', cancel, filters=cmd_filter)],
+        fallbacks=[CommandHandler("cancel", cancel, filters=cmd_filter)],
     )
 
 
 def build_installment_handler(user_filter=None) -> ConversationHandler:
     from commands import cancel
+
     cmd_filter = user_filter if user_filter is not None else filters.ALL
     text = filters.TEXT & ~filters.COMMAND
     return ConversationHandler(
-        entry_points=[CommandHandler('installment', start_installment, filters=cmd_filter)],
+        entry_points=[
+            CommandHandler("installment", start_installment, filters=cmd_filter)
+        ],
         states={
             INST_ITEM: [MessageHandler(text, inst_item)],
             INST_CARD: [MessageHandler(text, inst_card)],
@@ -242,5 +266,5 @@ def build_installment_handler(user_filter=None) -> ConversationHandler:
             INST_FULL_PRICE: [MessageHandler(text, inst_full_price)],
             INST_PERIODS: [MessageHandler(text, inst_periods)],
         },
-        fallbacks=[CommandHandler('cancel', cancel, filters=cmd_filter)],
+        fallbacks=[CommandHandler("cancel", cancel, filters=cmd_filter)],
     )

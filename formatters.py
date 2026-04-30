@@ -1,10 +1,10 @@
 import html
 import re
-from datetime import datetime, date
+from datetime import date, datetime
 
 
 def parse_amount(text: str) -> float:
-    clean = re.sub(r'[^\d.-]', '', str(text))
+    clean = re.sub(r"[^\d.-]", "", str(text))
     try:
         return float(clean) if clean else 0.0
     except ValueError:
@@ -44,6 +44,6 @@ def esc(s: str) -> str:
 async def send_html(update, text: str) -> None:
     if len(text) > 4000:
         for i in range(0, len(text), 4000):
-            await update.message.reply_text(text[i:i + 4000], parse_mode="HTML")
+            await update.message.reply_text(text[i : i + 4000], parse_mode="HTML")
     else:
         await update.message.reply_text(text, parse_mode="HTML")
