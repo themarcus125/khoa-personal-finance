@@ -245,9 +245,15 @@ async def get_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
             val = str(row[1]).strip() if len(row) > 1 else ""
 
             if capture_main and val:
-                dashboard_lines.append(f"🔹 <b>{esc(col_a)}</b>: {esc(val)}")
+                if "Total Outflow" in col_a:
+                    dashboard_lines.append(f"\n<b>{esc(col_a)}: {esc(val)}</b>")
+                else:
+                    dashboard_lines.append(f"🔹 <b>{esc(col_a)}</b>: {esc(val)}")
             if capture_cat and val:
-                category_lines.append(f"🔸 <b>{esc(col_a)}</b>: {esc(val)}")
+                if col_a.upper() == "TOTAL":
+                    category_lines.append(f"\n<b>{esc(col_a)}: {esc(val)}</b>")
+                else:
+                    category_lines.append(f"🔸 <b>{esc(col_a)}</b>: {esc(val)}")
 
         if len(category_lines) > 1:
             dashboard_lines.extend(category_lines)
@@ -328,18 +334,33 @@ async def get_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if not col_a:
                     break
 
+                # Skip description/header rows — real month rows contain a "-" year pattern
+                if "-20" not in col_a:
+                    continue
+
                 total_income = safe_cell(row, 3) or "0"
                 total_expenses = safe_cell(row, 6) or "0"
                 remains = safe_cell(row, 7) or "0"
                 budget_used = safe_cell(row, 8) or "0%"
 
+                try:
+                    used_pct = float(budget_used.replace("%", "").strip())
+                except ValueError:
+                    used_pct = 0.0
+                if used_pct < 80:
+                    used_emoji = "🟢"
+                elif used_pct < 95:
+                    used_emoji = "🟡"
+                else:
+                    used_emoji = "🔴"
+
                 lines.append(
                     f"🗓️ <b>{esc(col_a)}</b>\n"
-                    f"Income: {esc(total_income)} | Expenses: {esc(total_expenses)}\n"
-                    f"Remains: {esc(remains)} | Used: {esc(budget_used)}\n"
+                    f"Income: <b>{esc(total_income)}</b> | Expenses: <b>{esc(total_expenses)}</b>\n"
+                    f"Remains: <b>{esc(remains)}</b> | {used_emoji} Used: <b>{esc(budget_used)}</b>\n"
                 )
                 count += 1
-                if count >= 3:
+                if count >= 2:
                     break
 
         await update.message.reply_text("\n".join(lines), parse_mode="HTML")
