@@ -42,8 +42,19 @@ def esc(s: str) -> str:
 
 
 async def send_html(update, text: str) -> None:
-    if len(text) > 4000:
-        for i in range(0, len(text), 4000):
-            await update.message.reply_text(text[i : i + 4000], parse_mode="HTML")
-    else:
+    if len(text) <= 4000:
         await update.message.reply_text(text, parse_mode="HTML")
+        return
+
+    chunk_lines: list[str] = []
+    chunk_len = 0
+    for line in text.split("\n"):
+        line_len = len(line) + 1  # +1 for the newline
+        if chunk_lines and chunk_len + line_len > 4000:
+            await update.message.reply_text("\n".join(chunk_lines), parse_mode="HTML")
+            chunk_lines = []
+            chunk_len = 0
+        chunk_lines.append(line)
+        chunk_len += line_len
+    if chunk_lines:
+        await update.message.reply_text("\n".join(chunk_lines), parse_mode="HTML")
