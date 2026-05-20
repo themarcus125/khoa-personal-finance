@@ -36,6 +36,50 @@ logger = logging.getLogger(__name__)
 
 
 async def start_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text or ""
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+
+    # Quick-add: /expense\ncard\namount\ncategory\ndescription
+    if len(lines) >= 5:
+        card = lines[1]
+        try:
+            amount = float(lines[2].replace(",", ""))
+        except ValueError:
+            await update.message.reply_text("❌ Invalid amount on line 3.")
+            return ConversationHandler.END
+        category = lines[3]
+        description = "\n".join(lines[4:])
+
+        date_obj = datetime.now(config.VN_TZ)
+        statement_month = calculate_statement_month(date_obj, card)
+        row = [
+            date_obj.strftime("%m/%d/%Y"),
+            card,
+            amount,
+            category,
+            "Spending",
+            description,
+            statement_month,
+            "No",
+        ]
+        try:
+            sh = get_sheet()
+            ws = sh.worksheet("Transactions")
+            ws.append_row(row, value_input_option="USER_ENTERED")
+            await update.message.reply_text(
+                f"✅ <b>Expense added</b>\n\n"
+                f"💳 <b>{esc(card)}</b>\n"
+                f"💰 {bold_money(amount)}\n"
+                f"🏷️ {esc(category)} · 📅 {date_obj.strftime('%m/%d/%Y')}\n"
+                f"📝 {esc(description)}\n"
+                f"<i>Target statement: {esc(statement_month)}</i>",
+                parse_mode="HTML",
+            )
+        except Exception:
+            logger.exception("Error appending expense row")
+            await update.message.reply_text("❌ Failed to add to Google Sheets. Check logs.")
+        return ConversationHandler.END
+
     await update.message.reply_text(
         "💸 Let's log a new expense.\nWhich card did you use?",
         reply_markup=get_card_keyboard(),
