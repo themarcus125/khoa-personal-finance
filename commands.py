@@ -50,6 +50,19 @@ async def refresh_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def get_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    arg = " ".join(context.args).strip() if context.args else ""
+    show_all = arg.lower() == "all"
+    target_month_dt = None
+
+    if arg and not show_all:
+        target_month_dt = parse_month(arg)
+        if target_month_dt == datetime.min:
+            await update.message.reply_text(
+                "❌ Unrecognized month format. Try <code>/report May-2026</code>, <code>/report all</code>, or just <code>/report</code>.",
+                parse_mode="HTML",
+            )
+            return
+
     await update.message.reply_text("📊 Fetching your detailed financial summary...")
     try:
         sh = sheets.get_sheet()
@@ -73,34 +86,39 @@ async def get_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         sorted_months = sorted(monthly_data.keys(), key=parse_month)
 
-        now = datetime.now(config.VN_TZ)
-        current_month_dt = datetime(now.year, now.month, 1)
+        if not show_all and target_month_dt is None:
+            # Default: latest month only
+            if sorted_months:
+                sorted_months = [sorted_months[-1]]
+            else:
+                sorted_months = []
+
+        if target_month_dt is not None:
+            sorted_months = [m for m in sorted_months if parse_month(m) == target_month_dt]
 
         lines = ["<b>📈 Detailed Spending Report</b>"]
 
         for m in sorted_months:
-            m_dt = parse_month(m)
-            if m_dt >= current_month_dt - relativedelta(months=1):
-                month_total = sum(
-                    item["amount"]
-                    for card_items in monthly_data[m].values()
-                    for item in card_items
-                )
-                lines.append(f"\n📅 <b>{esc(m)}</b> · Total: {bold_money(month_total)}")
-                lines.append(SEP)
+            month_total = sum(
+                item["amount"]
+                for card_items in monthly_data[m].values()
+                for item in card_items
+            )
+            lines.append(f"\n📅 <b>{esc(m)}</b> · Total: {bold_money(month_total)}")
+            lines.append(SEP)
 
-                for c, items in monthly_data[m].items():
-                    card_total = sum(item["amount"] for item in items)
-                    lines.append(f"  💳 <b>{esc(c)}</b>: {bold_money(card_total)}")
-                    for item in items:
-                        short_desc = (
-                            (item["desc"][:32] + "…")
-                            if len(item["desc"]) > 32
-                            else item["desc"]
-                        )
-                        lines.append(
-                            f"     ├ {esc(short_desc)}: {bold_money(item['amount'])}"
-                        )
+            for c, items in monthly_data[m].items():
+                card_total = sum(item["amount"] for item in items)
+                lines.append(f"  💳 <b>{esc(c)}</b>: {bold_money(card_total)}")
+                for item in items:
+                    short_desc = (
+                        (item["desc"][:32] + "…")
+                        if len(item["desc"]) > 32
+                        else item["desc"]
+                    )
+                    lines.append(
+                        f"     ├ {esc(short_desc)}: {bold_money(item['amount'])}"
+                    )
 
         if len(lines) == 1:
             lines.append("\n🗒️ No transactions yet for this period.")
