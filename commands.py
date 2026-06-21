@@ -9,6 +9,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 import config
 import sheets
 from formatters import bold_money, esc, parse_amount, parse_month, safe_cell, send_html
+from sheets import get_all_values_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ async def get_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         sh = sheets.get_sheet()
         ws = sh.worksheet("Transactions")
-        data = ws.get_all_values()
+        data = get_all_values_with_retry(ws)
 
         monthly_data = defaultdict(lambda: defaultdict(list))
 
@@ -137,7 +138,7 @@ async def get_installments(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         sh = sheets.get_sheet()
         ws = sh.worksheet("Installments")
-        data = ws.get_all_values()
+        data = get_all_values_with_retry(ws)
 
         installments_by_card = defaultdict(list)
 
@@ -226,7 +227,7 @@ async def get_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         sh = sheets.get_sheet()
         ws = sh.worksheet("Dashboard")
-        data = ws.get_all_values()
+        data = get_all_values_with_retry(ws)
 
         dashboard_lines = ["<b>💸 This Month's Overview</b>\n"]
         category_lines = ["\n<b>🏷️ Category Breakdown</b>\n"]
@@ -288,7 +289,7 @@ async def get_closing(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         sh = sheets.get_sheet()
         ws = sh.worksheet("Dashboard")
-        data = ws.get_all_values()
+        data = get_all_values_with_retry(ws)
 
         lines = ["<b>📅 Next Statement Closing Dates</b>\n"]
         capture = False
@@ -330,13 +331,24 @@ async def get_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("💰 Fetching budget and cash flow...")
     try:
         sh = sheets.get_sheet()
+
+        # Determine the current month from the latest transaction on record.
+        txn_ws = sh.worksheet("Transactions")
+        txn_data = get_all_values_with_retry(txn_ws)
+        txn_months = {
+            m
+            for row in txn_data[1:]
+            if (m := safe_cell(row, config.TxnCol.MONTH))
+            and parse_month(m) != datetime.min
+        }
+        current_month = max(txn_months, key=parse_month) if txn_months else None
+
         ws = sh.worksheet("Dashboard")
-        data = ws.get_all_values()
+        data = get_all_values_with_retry(ws)
 
-        lines = ["<b>💰 Monthly Cash Flow</b>\n"]
+        # Collect every month row from the Monthly Cash Flow section.
+        month_rows = []
         capture = False
-        count = 0
-
         for row in data:
             if not row:
                 continue
@@ -351,35 +363,51 @@ async def get_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     continue
                 if not col_a:
                     break
-
                 # Skip description/header rows — real month rows contain a "-" year pattern
                 if "-20" not in col_a:
                     continue
+                month_rows.append((col_a, row))
 
-                total_income = safe_cell(row, 3) or "0"
-                total_expenses = safe_cell(row, 6) or "0"
-                remains = safe_cell(row, 7) or "0"
-                budget_used = safe_cell(row, 8) or "0%"
+        month_rows.sort(key=lambda mr: parse_month(mr[0]))
 
-                try:
-                    used_pct = float(budget_used.replace("%", "").strip())
-                except ValueError:
-                    used_pct = 0.0
-                if used_pct < 80:
-                    used_emoji = "🟢"
-                elif used_pct < 95:
-                    used_emoji = "🟡"
-                else:
-                    used_emoji = "🔴"
+        # Show the current month (latest with transactions) and the one before it.
+        if current_month is not None:
+            names = [mr[0] for mr in month_rows]
+            if current_month in names:
+                idx = names.index(current_month)
+                selected = month_rows[max(0, idx - 1) : idx + 1]
+            else:
+                selected = month_rows[-2:]
+        else:
+            selected = month_rows[-2:]
 
-                lines.append(
-                    f"🗓️ <b>{esc(col_a)}</b>\n"
-                    f"Income: <b>{esc(total_income)}</b> | Expenses: <b>{esc(total_expenses)}</b>\n"
-                    f"Remains: <b>{esc(remains)}</b> | {used_emoji} Used: <b>{esc(budget_used)}</b>\n"
-                )
-                count += 1
-                if count >= 2:
-                    break
+        lines = ["<b>💰 Monthly Cash Flow</b>\n"]
+        for col_a, row in selected:
+            total_income = safe_cell(row, 3) or "0"
+            total_expenses = safe_cell(row, 6) or "0"
+            remains = safe_cell(row, 7) or "0"
+            budget_used = safe_cell(row, 8) or "0%"
+
+            try:
+                used_pct = float(budget_used.replace("%", "").strip())
+            except ValueError:
+                used_pct = 0.0
+            if used_pct < 80:
+                used_emoji = "🟢"
+            elif used_pct < 95:
+                used_emoji = "🟡"
+            else:
+                used_emoji = "🔴"
+
+            label = esc(col_a)
+            if col_a == current_month:
+                label += " (Current)"
+
+            lines.append(
+                f"🗓️ <b>{label}</b>\n"
+                f"Income: <b>{esc(total_income)}</b> | Expenses: <b>{esc(total_expenses)}</b>\n"
+                f"Remains: <b>{esc(remains)}</b> | {used_emoji} Used: <b>{esc(budget_used)}</b>\n"
+            )
 
         await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 

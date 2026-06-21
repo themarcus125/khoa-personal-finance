@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 
 import gspread
 from dateutil.relativedelta import relativedelta
@@ -13,6 +14,17 @@ logger = logging.getLogger(__name__)
 # Mutable in-place so any module that does `from sheets import CLOSING_DAYS_CACHE`
 # always holds a reference to the live dict.
 CLOSING_DAYS_CACHE: dict[str, int] = {}
+
+
+def get_all_values_with_retry(ws, retries: int = 3, delay: float = 2.0):
+    for attempt in range(retries):
+        try:
+            return ws.get_all_values()
+        except gspread.exceptions.APIError as e:
+            if attempt < retries - 1 and e.response.status_code in (429, 500, 502, 503, 504):
+                time.sleep(delay * (attempt + 1))
+                continue
+            raise
 
 
 def get_sheet():
@@ -31,7 +43,7 @@ def load_settings() -> None:
     try:
         sh = get_sheet()
         ws = sh.worksheet("Settings")
-        data = ws.get_all_values()
+        data = get_all_values_with_retry(ws)
         new_days = {}
         for row in data:
             if len(row) >= 2:
