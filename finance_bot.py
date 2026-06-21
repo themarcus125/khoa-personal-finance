@@ -1,4 +1,7 @@
 import logging
+import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from telegram import Update
 from telegram.ext import Application, CommandHandler, filters
@@ -15,6 +18,30 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class _HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+    def log_message(self, *args):  # silence per-request logging
+        pass
+
+
+def start_health_server():
+    """Bind to $PORT so Render's port scan marks the deploy as Live.
+
+    A polling bot never opens an HTTP port on its own, which leaves a Render
+    Web Service stuck on "Deploying". This lightweight server satisfies the
+    port check and doubles as a health/keep-alive endpoint.
+    """
+    port = int(os.getenv("PORT", "10000"))
+    server = HTTPServer(("0.0.0.0", port), _HealthHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    logger.info(f"Health server listening on port {port}.")
+
+
 def main():
     if not config.TELEGRAM_BOT_TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN is missing. Check your .env file.")
@@ -25,6 +52,8 @@ def main():
             "ALLOWED_USER_ID is missing. Set it in .env to restrict bot access."
         )
         return
+
+    start_health_server()
 
     logger.info("Fetching initial settings from Google Sheets...")
     sheets.load_settings()
