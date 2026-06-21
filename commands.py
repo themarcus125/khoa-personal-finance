@@ -28,7 +28,63 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📅 /closing — Upcoming card statement dates\n"
         "💰 /budget — Monthly cash flow and budget used\n"
         "🔄 /refresh — Reload settings from Google Sheet\n\n"
+        "📖 /help — Full command reference with options\n"
         "Type /cancel at any time to abort the current entry.",
+        parse_mode="HTML",
+    )
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "📖 <b>Command Reference</b>\n"
+        "Arguments in <code>[ ]</code> are optional.\n\n"
+
+        "<b>✍️ Logging</b>\n"
+        f"{SEP}\n"
+        "💸 <b>/expense</b> — Add a transaction.\n"
+        "  • <code>/expense</code> alone → step-by-step flow "
+        "(card → amount → category → description).\n"
+        "  • <i>Quick-add</i> in one message — the command followed by 4 lines:\n"
+        "    <code>/expense</code>\n"
+        "    <code>&lt;card&gt;</code>\n"
+        "    <code>&lt;amount&gt;</code>\n"
+        "    <code>&lt;category&gt;</code>\n"
+        "    <code>&lt;description&gt;</code>\n"
+        "    The description may span multiple lines. The statement month is "
+        "calculated automatically from the card's closing date.\n"
+        "    <i>Example:</i>\n"
+        "    <code>/expense</code>\n"
+        "    <code>VCB JCB</code>\n"
+        "    <code>128900</code>\n"
+        "    <code>Food</code>\n"
+        "    <code>Lunch with team</code>\n\n"
+        "🙏🏼 <b>/installment</b> — Add an installment plan via a guided flow "
+        "(item → card → start date → full price → months). "
+        "Start date accepts <code>DD/MM/YYYY</code> or <code>today</code>.\n"
+        "    <i>Example replies:</i> "
+        "<code>iPhone 16</code> → <code>Techcombank</code> → "
+        "<code>today</code> → <code>24997000</code> → <code>12</code>\n\n"
+
+        "<b>📊 Reports</b>\n"
+        f"{SEP}\n"
+        "📊 <b>/report [month|all]</b> — Spending grouped by statement month.\n"
+        "  • <code>/report</code> → latest month only.\n"
+        "  • <code>/report all</code> → every month on record.\n"
+        "  • <code>/report May-2026</code> → a specific month "
+        "(format <code>Mon-YYYY</code>, case-insensitive).\n\n"
+        "📦 <b>/report_installments</b> — All tracked installments with "
+        "paid/remaining progress per card.\n\n"
+        "📈 <b>/dashboard</b> — This month's totals and category breakdown.\n\n"
+        "💰 <b>/budget</b> — Monthly cash flow and budget used "
+        "(current month + the previous one).\n\n"
+        "📅 <b>/closing</b> — Upcoming card statement closing dates.\n\n"
+
+        "<b>⚙️ Utility</b>\n"
+        f"{SEP}\n"
+        "🔄 <b>/refresh</b> — Reload card settings from the Google Sheet.\n"
+        "👋 <b>/start</b> — Show the welcome message.\n"
+        "📖 <b>/help</b> — Show this reference.\n"
+        "❌ <b>/cancel</b> — Abort the current entry (works mid-flow).",
         parse_mode="HTML",
     )
 

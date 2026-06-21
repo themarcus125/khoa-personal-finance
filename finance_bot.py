@@ -63,6 +63,7 @@ def main():
     app = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", commands.start, filters=user_filter))
+    app.add_handler(CommandHandler("help", commands.help_command, filters=user_filter))
     app.add_handler(
         CommandHandler("refresh", commands.refresh_settings, filters=user_filter)
     )
