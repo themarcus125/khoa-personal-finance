@@ -2,7 +2,7 @@ start:
 	python finance_bot.py
 
 dev:
-	watchfiles "python finance_bot.py"
+	watchfiles --filter python "python finance_bot.py" $(wildcard *.py)
 
 lint:
 	ruff check .

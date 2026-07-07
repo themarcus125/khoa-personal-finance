@@ -238,17 +238,52 @@ async def inst_periods(update: Update, context: ContextTypes.DEFAULT_TYPE):
         full_price = context.user_data["full_price"]
         monthly = full_price / periods if periods > 0 else full_price
 
-        row = [
-            item,
-            card,
-            start_date.strftime("%d/%m/%Y"),
-            full_price,
-            periods,
-        ]
-
         sh = get_sheet()
         ws = sh.worksheet("Installments")
-        ws.append_row(row, value_input_option="USER_ENTERED")
+
+        # Insert the new item directly above the TOTALS row, anchored at
+        # column A. append_row() can't be used here: Sheets' table
+        # auto-detection misreads the layout (TOTALS row + billing data in
+        # the far-right columns) and lands new data off to the right.
+        col_a = ws.col_values(config.InstCol.ITEM + 1)
+        totals_idx = next(
+            (i for i, v in enumerate(col_a, start=1) if v.strip().lower() == "totals"),
+            None,
+        )
+        insert_at = totals_idx if totals_idx else len(col_a) + 1
+
+        # Auto-fill the computed columns (F–M) with the same formulas the
+        # existing rows use, self-referencing the row we're inserting at.
+        # Column I is a spacer between H (Remaining) and J (Price Left).
+        r = insert_at
+        vlookup = f"VLOOKUP(B{r},Settings!$A$4:$B$9,2,FALSE())"
+        billing_start = (
+            f"IF(DAY(C{r})<={vlookup},"
+            f"DATE(YEAR(C{r}),MONTH(C{r}),{vlookup}),"
+            f"DATE(YEAR(C{r}),MONTH(C{r})+1,{vlookup}))"
+        )
+        row = [
+            item,                                       # A Item
+            card,                                       # B Card
+            start_date.strftime("%d/%m/%Y"),            # C Start Date
+            full_price,                                 # D Full Price
+            periods,                                    # E Installment Periods
+            f"=IF(E{r}=0,0,ROUND(D{r}/E{r},0))",        # F Monthly Payment
+            f"=IFERROR(MIN(E{r},IF(TODAY()<{billing_start},0,"
+            f'DATEDIF({billing_start},TODAY(),"M")+1)),0)',  # G Paid Periods
+            f"=E{r}-G{r}",                              # H Remaining
+            "",                                         # I spacer
+            f"=F{r}*H{r}",                              # J Price Left
+            f'=IF(H{r}<=0,"Yes","No")',                 # K Paid-off?
+            f"=DATE(YEAR(C{r}),MONTH(C{r})+IF(DAY(C{r})<={vlookup},0,1),1)",  # L First Billing
+            f"=EDATE(L{r},E{r}-1)",                     # M Last Billing
+        ]
+        ws.insert_row(
+            row,
+            index=insert_at,
+            value_input_option="USER_ENTERED",
+            inherit_from_before=True,
+        )
 
         await update.message.reply_text(
             f"✅ <b>Installment added</b>\n\n"
@@ -257,7 +292,7 @@ async def inst_periods(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💰 {bold_money(full_price)} · ⏱️ {periods} months\n"
             f"📅 Start: {start_date.strftime('%d/%m/%Y')}\n"
             f"≈ {bold_money(monthly)}/mo\n\n"
-            f"<i>Reminder: open the sheet and drag the formulas in columns F–M down into the new row.</i>",
+            f"<i>Billing & paid-period formulas (F–M) were filled in automatically.</i>",
             parse_mode="HTML",
         )
     except ValueError:
